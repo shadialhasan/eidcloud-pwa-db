@@ -1,0 +1,22 @@
+{
+  "name": "MyPwaApp",
+  "version": 1,
+  "tables": {
+    "customers": {
+      "primaryKey": "id",
+      "autoIncrement": false,
+      "indexes": {
+        "status": { "keyPath": "status", "unique": false },
+        "email": { "keyPath": "email", "unique": true }
+      }
+    },
+    "orders": {
+      "primaryKey": "id",
+      "autoIncrement": false,
+      "indexes": {
+        "customer_id": { "keyPath": "customer_id", "unique": false },
+        "created_at": { "keyPath": "created_at", "unique": false }
+      }
+    }
+  }
+}

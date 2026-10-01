@@ -1,0 +1,27 @@
+{
+    "name": "eidcloud/pwa-db",
+    "description": "Progressive Web App (PWA) offline-first IndexedDB database abstraction with background sync and migration in pure PHP",
+    "type": "library",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "MHD. Shadi AL-Hasan",
+            "email": "mhd.shadi.alhasan@gmail.com",
+            "role": "Lead Architect & Developer"
+        }
+    ],
+    "require": {
+        "php": ">=8.2"
+    },
+    "require-dev": {},
+    "autoload": {
+        "psr-4": {
+            "EidCloud\\PwaDb\\": "src/"
+        }
+    },
+    "bin": [
+        "bin/eidcloud-pwa-db"
+    ],
+    "minimum-stability": "stable",
+    "prefer-stable": true
+}

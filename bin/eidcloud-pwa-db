@@ -1,0 +1,162 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+if (file_exists(__DIR__ . '/../vendor/autoload.php')) {
+    require_once __DIR__ . '/../vendor/autoload.php';
+} else {
+    // Custom zero-dependency PSR-4 autoloader fallback
+    spl_autoload_register(function ($class) {
+        $prefix = 'EidCloud\\PwaDb\\';
+        $baseDir = __DIR__ . '/../src/';
+
+        $len = strlen($prefix);
+        if (strncmp($prefix, $class, $len) !== 0) {
+            return;
+        }
+
+        $relativeClass = substr($class, $len);
+        $file = $baseDir . str_replace('\\', '/', $relativeClass) . '.php';
+
+        if (file_exists($file)) {
+            require $file;
+        }
+    });
+}
+
+use EidCloud\PwaDb\PwaDb;
+use EidCloud\PwaDb\Schema\MigrationManager;
+use EidCloud\PwaDb\Sdk\JsCompiler;
+
+function printUsage(): void
+{
+    echo "📱 eidcloud-pwa-db CLI - Version " . PwaDb::VERSION . "\n";
+    echo "Progressive Web App Offline Database & Sync Toolchain\n\n";
+    echo "Usage:\n";
+    echo "  php bin/eidcloud-pwa-db [command] [options]\n\n";
+    echo "Commands:\n";
+    echo "  compile-sdk [--out=<path>] [--schema=<file>]  Compile the client-side IndexedDB JS SDK\n";
+    echo "  validate-schema <file>                        Validate an IndexedDB schema JSON file\n";
+    echo "  export-manifest <file> [--out=<path>]         Export IndexedDB migration manifest from schema\n";
+    echo "  version                                       Print library version\n";
+    echo "  --help, -h                                    Display this help message\n\n";
+    echo "Examples:\n";
+    echo "  php bin/eidcloud-pwa-db compile-sdk --out=./dist/\n";
+    echo "  php bin/eidcloud-pwa-db compile-sdk --schema=schema.json --out=./dist/\n";
+    echo "  php bin/eidcloud-pwa-db validate-schema schema.json\n";
+    echo "  php bin/eidcloud-pwa-db export-manifest schema.json\n\n";
+}
+
+$argv = $_SERVER['argv'] ?? [];
+$args = array_slice($argv, 1);
+
+if (empty($args) || in_array('--help', $args, true) || in_array('-h', $args, true)) {
+    printUsage();
+    exit(0);
+}
+
+$command = $args[0];
+
+switch ($command) {
+    case 'version':
+        echo "eidcloud-pwa-db v" . PwaDb::VERSION . "\n";
+        exit(0);
+
+    case 'compile-sdk':
+        $outDir = './dist/';
+        $schemaFile = null;
+
+        foreach (array_slice($args, 1) as $arg) {
+            if (str_starts_with($arg, '--out=')) {
+                $outDir = substr($arg, 6);
+            } elseif (str_starts_with($arg, '--schema=')) {
+                $schemaFile = substr($arg, 9);
+            }
+        }
+
+        $schema = null;
+        if ($schemaFile !== null) {
+            if (!file_exists($schemaFile)) {
+                fwrite(STDERR, "Error: Schema file not found: {$schemaFile}\n");
+                exit(1);
+            }
+            $schema = json_decode((string)file_get_contents($schemaFile), true);
+            if (!is_array($schema)) {
+                fwrite(STDERR, "Error: Invalid JSON format in schema file: {$schemaFile}\n");
+                exit(1);
+            }
+        }
+
+        $compiler = new JsCompiler($schema);
+        $savedPath = $compiler->saveTo($outDir, 'eidcloud-pwa-db.js', $schema);
+
+        echo "✅ JavaScript SDK successfully compiled to: {$savedPath}\n";
+        exit(0);
+
+    case 'validate-schema':
+        if (!isset($args[1])) {
+            fwrite(STDERR, "Error: Please specify the schema JSON file to validate.\n");
+            fwrite(STDERR, "Usage: php bin/eidcloud-pwa-db validate-schema <schema.json>\n");
+            exit(1);
+        }
+
+        $filePath = $args[1];
+        try {
+            $manager = MigrationManager::fromJsonFile($filePath);
+            $result = $manager->validate();
+
+            if ($result['valid']) {
+                echo "✅ Schema is valid!\n";
+                echo "Database Name: " . ($manager->getSchema()['name'] ?? 'N/A') . "\n";
+                echo "Version: " . ($manager->getSchema()['version'] ?? 'N/A') . "\n";
+                echo "Tables Count: " . count($manager->getSchema()['tables'] ?? []) . "\n";
+                exit(0);
+            } else {
+                fwrite(STDERR, "❌ Schema validation failed with errors:\n");
+                foreach ($result['errors'] as $err) {
+                    fwrite(STDERR, "  - {$err}\n");
+                }
+                exit(1);
+            }
+        } catch (\Throwable $e) {
+            fwrite(STDERR, "❌ Error reading schema: " . $e->getMessage() . "\n");
+            exit(1);
+        }
+
+    case 'export-manifest':
+        if (!isset($args[1])) {
+            fwrite(STDERR, "Error: Please specify the schema JSON file.\n");
+            exit(1);
+        }
+
+        $filePath = $args[1];
+        $outFile = null;
+        foreach (array_slice($args, 2) as $arg) {
+            if (str_starts_with($arg, '--out=')) {
+                $outFile = substr($arg, 6);
+            }
+        }
+
+        try {
+            $manager = MigrationManager::fromJsonFile($filePath);
+            $manifest = $manager->getMigrationManifest();
+            $json = json_encode($manifest, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+
+            if ($outFile) {
+                file_put_contents($outFile, $json);
+                echo "✅ Migration manifest saved to: {$outFile}\n";
+            } else {
+                echo $json . "\n";
+            }
+            exit(0);
+        } catch (\Throwable $e) {
+            fwrite(STDERR, "❌ Error: " . $e->getMessage() . "\n");
+            exit(1);
+        }
+
+    default:
+        fwrite(STDERR, "Error: Unknown command '{$command}'\n\n");
+        printUsage();
+        exit(1);
+}

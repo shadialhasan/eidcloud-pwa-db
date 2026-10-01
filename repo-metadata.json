@@ -1,0 +1,12 @@
+{
+  "description": "Progressive Web App (PWA) offline-first IndexedDB database abstraction with background sync and migration in pure PHP",
+  "topics": [
+    "eidcloud",
+    "pwa-database",
+    "indexeddb",
+    "offline-first",
+    "background-sync",
+    "local-storage",
+    "php8"
+  ]
+}
